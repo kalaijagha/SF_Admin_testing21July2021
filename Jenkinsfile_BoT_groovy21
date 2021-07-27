@@ -1,6 +1,6 @@
 def env='dev'
 def app_name='snowflake'
-def repo_name='SF_Admin_testing21July2021'
+def repo_name='SF_test'
 def snowsql_config="/home/ubuntu/.snowsql/config"
 
 def branch_name='main'
