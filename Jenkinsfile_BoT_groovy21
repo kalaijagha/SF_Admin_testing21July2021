@@ -37,7 +37,81 @@ pipeline {
             }
         }
             
-       
+        // Stage to deploy the files to destination server //
+        stage('Deploy'){
+            steps {
+                script {
+                
+				
+				
+                FILES_CHANGED= sh(script: "set +x && git log -m -1 --name-only --diff-filter=ACM --pretty='format:' `git rev-parse HEAD` | sort -u | grep -i '.sql\$' > ${WORKSPACE}/committed_files.txt")
+                sh("set +x && echo 'DEPLOYBEGIN' && echo '******Deploying from release/${env} Branch to ${app_name} ${env} Environment******'")
+                sh("cat ${WORKSPACE}/committed_files.txt")
+                
+				
+                sh('''
+                set +x     
+                echo "" > snow_sql_output.log
+                echo "" > status
+                git show --pretty=fuller ${GIT_COMMIT} | head -n 10 | tr -d '[:blank:]' | sed 's/commit/CommitID:/' | sed 's/</{/' | sed 's/>/}/' | sed 's/(//' | sed 's/)//' > git_details.txt     
+                COMMIT_ONELINER=`sed s/"'"//g git_details.txt | xargs`
+                cat git_details.txt
+                
+                while read -r file || [[ -n "$file" ]]
+                do
+                  statement_type=`echo "$file" |  cut -d / -f 1`
+                  echo "statement_type: ${statement_type}, file: $file"
+                  if [ ${statement_type} = "ddl" ]; then
+                   database_name=`echo "$file" |  cut -d / -f 4`
+                   database="${database_name}_'''+"${env}"+'''"
+                   schema=`echo "$file" |  cut -d / -f 6`
+                   exec_type=`echo "$file" |  cut -d / -f 7 | tr '[:lower:]' '[:upper:]'`
+                   echo " Database: ${database}"
+                   echo " Schema: ${schema}"
+                   echo " File_path: ${file}"
+                   echo " Executing sql file $(cat ${file})."
+                   echo " Proceeding to create ${exec_type} in ${database} database and ${schema} schema.! " > ${WORKSPACE}/logs/${app_name}_${BUILD_NUMBER}.log
+                   echo " Proceeding to create ${exec_type} in ${database} database and ${schema} schema.! " >> snow_sql_output.log
+                   exec_sql=`snowsql --dbname ${database} --schemaname ${schema} --config '''+"${snowsql_config}"+''' --filename ${file} --connection sf_conn  2>&1`
+                   echo " Snowsql execution ${exec_sql}"
+                   echo "${exec_sql}" >> snow_sql_output.log
+                  elif [ ${statement_type} = "release" ]; then
+                   echo " File_path: ${file}"
+                   echo " Executing release sql file $(cat ${file})."
+                   ## echo " Proceeding to create release query.! " > ${WORKSPACE}/logs/${app_name}_${BUILD_NUMBER}.log
+                   echo " Proceeding to create release query.!" >> snow_sql_output.log
+                   exec_sql=`snowsql --config '''+"${snowsql_config}"+''' --filename ${file} --connection sf_conn 2>&1`
+                   echo " Snowsql execution ${exec_sql}"
+                   echo "${exec_sql}" >> snow_sql_output.log
+                  
+                  else
+                   echo " File_path: ${file}"
+                   echo " Executing  sql file $(cat ${file})."
+                   echo " Proceeding to create .! " > ${WORKSPACE}/logs/${app_name}_${BUILD_NUMBER}.log
+                   echo " Proceeding to create .!" >> snow_sql_output.log
+                   exec_sql=`snowsql --config '''+"${snowsql_config}"+''' --filename ${file} --connection sf_conn 2>&1`
+                   echo " Snowsql execution ${exec_sql}"
+                   echo "${exec_sql}" >> snow_sql_output.log  
+                  fi
+				  
+                  echo "***************************************************"
+                done < ${WORKSPACE}/committed_files.txt
+                echo "---------------------------------------"
+                
+                LOG_READ=$(cat snow_sql_output.log)
+                
+                if grep -q 'successfully' "snow_sql_output.log"; then
+                  echo " All sql statements has been executed successfully"
+                else
+                  echo " One or more statement has failed to execute.!!"
+                  fi
+                ''')
+				sh("set +x && echo 'STAGEDONE'")
+        
+                }
+            }
+        }
     }
+	
 }
 
