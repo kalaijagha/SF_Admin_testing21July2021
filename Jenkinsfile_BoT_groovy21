@@ -14,3 +14,30 @@ def GIT_COMMIT // NO ACTION REQUIRED : For Git Commit ID assignment //
 def LOG_READ // NO ACTION REQUIRED : For console log assignment //
 def COMMIT_ONELINER  // NO ACTION REQUIRED : For Commit info assignment //
 
+// Declarative Pipeline starts here //
+pipeline {
+    agent any
+    // Stages begins here //
+    stages {
+        
+        // Stage for Git Branches Checkout //
+        stage('Checkout Git Branch') {
+           steps{
+           
+             git branch: "${branch_name}",
+             url: "${code_repo_name}"
+                    
+             // Create Ansible admin directory and do a checkout from master // ---changed here --Snowflake_BoT_admin
+             dir('SF_Admin_testing21July2021') {
+                checkout([$class: 'GitSCM', 
+                branches: [[name: '*/main']], 
+                extensions: [], 
+                userRemoteConfigs: [[url: "${admin_repo}"]]]) 
+             }
+            }
+        }
+            
+       
+    }
+}
+
